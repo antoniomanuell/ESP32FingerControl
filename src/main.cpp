@@ -1,67 +1,51 @@
 #include <ConfigurableFirmata.h>
 #include <WiFi.h>
-#include "Wire.h"
+#include <Wire.h>
 
-#include <AnalogInputFirmata.h>
-AnalogInputFirmata analogInput;
+const int ledPin = 2;
 
-#include <FirmataExt.h>
-FirmataExt firmataExt;
-
-void sysexCallback(byte, byte, byte*);
+void sysexCallback(byte command, byte argc, byte *argv);
 void systemResetCallback();
 
-void initTransport()
-{
+void setup() {
+  Serial.begin(115200);  
   Firmata.begin(115200);
-}
-
-void initFirmata()
-{
-  Firmata.setFirmwareVersion(FIRMATA_FIRMWARE_MAJOR_VERSION, FIRMATA_FIRMWARE_MINOR_VERSION);
-  firmataExt.addFeature(analogInput); // Adiciona a funcionalidade de entrada analógica ao Firmata
-  
   Firmata.attach(SYSTEM_RESET, systemResetCallback);
   Firmata.attach(START_SYSEX, sysexCallback);
+
+  pinMode(ledPin, OUTPUT);
 }
 
-void setup()
-{
-  initFirmata();
-  initTransport();
-  
-  pinMode(2, OUTPUT);
-}
-
-void loop()
-{
-  while (Firmata.available()) {
-    Firmata.processInput();
-  }
-}
-
-void systemResetCallback()
-{
-  for (byte i = 0; i < TOTAL_PINS; i++) {
-    if (IS_PIN_ANALOG(i)) {
-      Firmata.setPinMode(i, ANALOG);
-    } else if (IS_PIN_DIGITAL(i)) {
-      Firmata.setPinMode(i, OUTPUT);
+void loop() {
+  while (true) {
+    if (Firmata.available()) {
+      Serial.println("Firmata disponível, processando entrada...");
+      Firmata.processInput();
+    } else {
+      Serial.println("Firmata não disponível, esperando...");
     }
+    delay(1000);
   }
-  firmataExt.reset();
 }
 
-void sysexCallback(byte command, byte argc, byte *argv)
-{
-  if (command == 0x01) {  // Exemplo de comando SYSEX para controlar o LED
+void systemResetCallback() {
+}
+
+void sysexCallback(byte command, byte argc, byte *argv) {
+  Serial.print("Recebido comando SYSEX: ");  // Mensagem de depuração
+  Serial.println(command, HEX);
+  
+  if (command == 0x01) {  // Comando SYSEX para controlar o LED
     byte led_state = argv[0];  // Primeiro argumento determina o estado do LED
+    Serial.print("Estado do LED: ");
+    Serial.println(led_state);
 
     if (led_state == 0x01) {
-      digitalWrite(2, HIGH);  
+      digitalWrite(ledPin, HIGH);  
+      Serial.println("LED aceso"); 
     } else if (led_state == 0x00) {
-      digitalWrite(2, LOW);   
+      digitalWrite(ledPin, LOW);  
+      Serial.println("LED apagado");
     }
   }
-  firmataExt.handleSysex(command, argc, argv);
 }
