@@ -12,19 +12,32 @@ int motor2Pin1 = 17;
 int motor2Pin2 = 16;
 int enable2Pin = 4;
 
+const char* ssid = "UNITEL_5G";
+const char* password = "alma@2012";
+
+WiFiServer server(80);
+
 void moveForward();
 void stopMotors();
 void turnLeft();
 void turnRight();
 void moveBackward();
-void sysexCallback(byte command, byte argc, byte *argv);
-void systemResetCallback();
+void handleClient(WiFiClient client);
 
 void setup() {
-  Serial.begin(115200);  
-  Firmata.begin(115200);
-  Firmata.attach(SYSTEM_RESET, systemResetCallback);
-  Firmata.attach(START_SYSEX, sysexCallback);
+  Serial.begin(115200);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Conectando ao WiFi...");
+  }
+
+  Serial.println("Conectado ao WiFi");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  server.begin();
 
   // Motor A pins
   pinMode(motor1Pin1, OUTPUT);
@@ -45,45 +58,31 @@ void setup() {
 }
 
 void loop() {
-  while (true) {
-    if (Firmata.available()) {
-      Serial.println("Firmata disponível, processando entrada...");
-      Firmata.processInput();
-    } else {
-      Serial.println("Firmata não disponível, esperando...");
-    }
-    delay(1000);
+  WiFiClient client = server.available();
+  if (client) {
+    handleClient(client);
   }
 }
 
-void systemResetCallback() {
-  // Callback de reset do sistema
-}
-
-void sysexCallback(byte command, byte argc, byte *argv) {
-  if (command == 0x01) {
-    byte motor_command = argv[0];
-    switch (motor_command) {
-      case 0x01: // Move forward
+void handleClient(WiFiClient client) {
+  while (client.connected()) {
+    if (client.available()) {
+      String command = client.readStringUntil('\n');
+      if (command == "MOVE_FORWARD") {
         moveForward();
-        break;
-      case 0x00: // Stop motors
+      } else if (command == "STOP") {
         stopMotors();
-        break;
-      case 0x02: // Turn left
+      } else if (command == "TURN_LEFT") {
         turnLeft();
-        break;
-      case 0x03: // Turn right
+      } else if (command == "TURN_RIGHT") {
         turnRight();
-        break;
-      case 0x04: // Move backward
+      } else if (command == "MOVE_BACKWARD") {
         moveBackward();
-        break;
-      default:
-        stopMotors();
-        break;
+      }
+      client.println("OK");
     }
   }
+  client.stop();
 }
 
 void moveForward() {
